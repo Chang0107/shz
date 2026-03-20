@@ -3,19 +3,30 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>課表可視化系統</title>
+  <title>課表可視化系統 v2.0</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+    body { font-family: 'Noto Sans TC', sans-serif; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes modalIn { from { opacity: 0; scale: 0.95; } to { opacity: 1; scale: 1; } }
+    .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
+    .animate-modalIn { animation: modalIn 0.2s ease-out forwards; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
 </head>
-<body class="bg-gray-100">
+<body class="bg-slate-50 overflow-hidden">
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect, useMemo } = React;
+    const { useState, useEffect, useMemo, useCallback } = React;
 
-    // 定義所有可能的節次與時間
     const TIME_SLOTS = [
       { id: '0', time: '07:10-08:00' }, { id: '1', time: '08:10-09:00' },
       { id: '2', time: '09:10-10:00' }, { id: '3', time: '10:20-11:10' },
@@ -28,18 +39,17 @@
     ];
 
     const COLORS = [
-      'bg-blue-100 border-blue-300 text-blue-900',
-      'bg-red-100 border-red-300 text-red-900',
-      'bg-green-100 border-green-300 text-green-900',
-      'bg-yellow-100 border-yellow-400 text-yellow-900',
-      'bg-purple-100 border-purple-300 text-purple-900',
-      'bg-pink-100 border-pink-300 text-pink-900',
+      'bg-sky-100 border-sky-300 text-sky-900',
+      'bg-rose-100 border-rose-300 text-rose-900',
+      'bg-emerald-100 border-emerald-300 text-emerald-900',
+      'bg-amber-100 border-amber-400 text-amber-900',
+      'bg-violet-100 border-violet-300 text-violet-900',
+      'bg-fuchsia-100 border-fuchsia-300 text-fuchsia-900',
       'bg-indigo-100 border-indigo-300 text-indigo-900',
       'bg-teal-100 border-teal-300 text-teal-900',
       'bg-orange-100 border-orange-300 text-orange-900'
     ];
 
-    // 複雜 CSV 解析器：處理引號內的逗號與換行
     const parseCSV = (text) => {
       const result = [];
       let row = [];
@@ -50,7 +60,7 @@
         if (char === '"' && text[i+1] === '"') { col += '"'; i++; }
         else if (char === '"') { inQuotes = !inQuotes; }
         else if (char === ',' && !inQuotes) { row.push(col); col = ""; }
-        else if ((char === '\r' || char === '\n') && !inQuotes) {
+        else if ((char === '\n' || char === '\r') && !inQuotes) {
           if (col !== "" || row.length > 0) {
             row.push(col);
             result.push(row);
@@ -63,13 +73,77 @@
       return result;
     };
 
+    // 詳細資訊 Modal 組件
+    const DetailModal = ({ course, onClose }) => {
+      if (!course) return null;
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}>
+          <div 
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-modalIn" 
+            onClick={e => e.stopPropagation()}
+          >
+            <div className={`p-6 ${course.color.replace('bg-', 'bg-opacity-30 bg-')} border-b flex justify-between items-start`}>
+              <div>
+                <h3 className="text-2xl font-black text-slate-800 leading-tight">{course.name}</h3>
+                <p className="text-slate-500 font-medium mt-1">{course.teacher} 老師</p>
+              </div>
+              <button onClick={onClose} className="p-2 hover:bg-white/50 rounded-full transition-colors">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
+              <div className="grid grid-cols-2 gap-4">
+                <InfoItem label="系所" value={course.rawData['系所']} />
+                <InfoItem label="開課序號" value={course.id} />
+                <InfoItem label="學分" value={course.rawData['學分']} />
+                <InfoItem label="選課性質" value={`${course.rawData['必/選']} / ${course.rawData['全/半']}`} isTag />
+              </div>
+              
+              <InfoItem label="英文名稱" value={course.rawData['英文課程名稱']} />
+              <InfoItem label="上課地點時間" value={course.rawData['地點時間']} />
+              
+              {course.rawData['限修條件'] && (
+                <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
+                  <h4 className="text-xs font-bold text-amber-600 uppercase mb-2 flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                    限修條件
+                  </h4>
+                  <p className="text-sm text-amber-900 leading-relaxed">{course.rawData['限修條件']}</p>
+                </div>
+              )}
+
+              {course.rawData['備註'] && (
+                <InfoItem label="備註" value={course.rawData['備註']} />
+              )}
+            </div>
+            <div className="p-4 bg-slate-50 border-t flex justify-end">
+              <button onClick={onClose} className="px-6 py-2 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-700 transition">確定</button>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const InfoItem = ({ label, value, isTag = false }) => (
+      <div>
+        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{label}</h4>
+        {isTag ? (
+          <span className="inline-block px-2 py-1 bg-slate-100 text-slate-700 text-xs font-bold rounded-md border border-slate-200">{value}</span>
+        ) : (
+          <p className="text-sm text-slate-700 font-medium">{value || '無'}</p>
+        )}
+      </div>
+    );
+
     function App() {
       const [courses, setCourses] = useState([]);
       const [selectedIds, setSelectedIds] = useState(new Set());
       const [loading, setLoading] = useState(true);
       const [error, setError] = useState(null);
+      const [detailCourse, setDetailCourse] = useState(null);
 
-      const processRawData = (csvText) => {
+      const processRawData = useCallback((csvText) => {
         try {
           const rows = parseCSV(csvText);
           if (rows.length < 2) return;
@@ -84,8 +158,10 @@
           const allPeriodKeys = TIME_SLOTS.map(s => s.id);
 
           const parsed = rows.slice(1).map((row, index) => {
+            const rowData = {};
+            headers.forEach((h, i) => rowData[h] = row[i]);
+
             const timeStr = row[timeIdx] || "";
-            // 解析格式如: "二 6-7 和平 樸401"
             const match = timeStr.match(/([一二三四五六日])\s+([0-9A-D-]+)\s+(.*)/);
             
             let periods = [];
@@ -108,7 +184,8 @@
               day: dayMap[match ? match[1] : ''],
               periods,
               location: match ? match[3] : "",
-              color: COLORS[index % COLORS.length]
+              color: COLORS[index % COLORS.length],
+              rawData: rowData
             };
           }).filter(c => c.name && c.day);
 
@@ -118,9 +195,8 @@
         } catch (e) {
           setError("解析資料時發生錯誤，請檢查 CSV 格式。");
         }
-      };
+      }, []);
 
-      // 初始讀取同目錄下的檔案
       useEffect(() => {
         fetch('./活頁簿1.csv')
           .then(res => res.ok ? res.text() : Promise.reject())
@@ -128,19 +204,14 @@
             processRawData(text);
             setLoading(false);
           })
-          .catch(() => {
-            setLoading(false);
-            // 不設 error，讓使用者知道可以手動上傳
-          });
-      }, []);
+          .catch(() => setLoading(false));
+      }, [processRawData]);
 
       const handleFileUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = (evt) => {
-          processRawData(evt.target.result);
-        };
+        reader.onload = (evt) => processRawData(evt.target.result);
         reader.readAsText(file);
       };
 
@@ -150,7 +221,6 @@
         setSelectedIds(next);
       };
 
-      // 計算要顯示的節次（有課才顯示，但至少顯示 1-10 節）
       const visibleSlots = useMemo(() => {
         return TIME_SLOTS.filter(slot => {
           const isCore = parseInt(slot.id) >= 1 && parseInt(slot.id) <= 10;
@@ -165,81 +235,108 @@
       ];
 
       return (
-        <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-gray-50">
+        <div className="flex flex-col md:flex-row h-screen overflow-hidden">
           {/* 左側欄 */}
-          <div className="w-full md:w-80 bg-white border-r flex flex-col shadow-lg z-10">
-            <div className="p-6 border-b">
-              <h1 className="text-2xl font-black text-blue-600 mb-1">課表可視化</h1>
-              <p className="text-xs text-gray-400">NTNU Course Visualizer</p>
+          <div className="w-full md:w-80 bg-white border-r flex flex-col shadow-2xl z-20">
+            <div className="p-6 border-b bg-white">
+              <div className="flex items-center gap-3 mb-1">
+                <div className="bg-blue-600 p-2 rounded-xl text-white">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                </div>
+                <div>
+                  <h1 className="text-xl font-black text-slate-800">課表可視化</h1>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Course Visualizer 2.0</p>
+                </div>
+              </div>
               
-              <div className="mt-4">
-                <label className="block w-full text-center bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold py-2 px-4 rounded-lg cursor-pointer border border-blue-200 transition">
+              <div className="mt-6">
+                <label className="group flex items-center justify-center gap-2 w-full bg-slate-50 hover:bg-blue-600 hover:text-white text-slate-600 font-bold py-3 px-4 rounded-2xl cursor-pointer border border-slate-200 transition-all active:scale-95 shadow-sm">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                   匯入 活頁簿1.csv
                   <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
                 </label>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-2">
-              {loading && <p className="text-center text-gray-500 py-10 animate-pulse">嘗試讀取檔案中...</p>}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+              {loading && <div className="space-y-3 animate-pulse">
+                {[1,2,3,4,5].map(i => <div key={i} className="h-16 bg-slate-100 rounded-xl"></div>)}
+              </div>}
               {!loading && courses.length === 0 && !error && (
-                <div className="text-center py-10 px-4">
-                  <p className="text-gray-500 text-sm">找不到 活頁簿1.csv</p>
-                  <p className="text-xs text-gray-400 mt-2">請確認檔案已上傳至 GitHub，或使用上方按鈕手動上傳。</p>
+                <div className="text-center py-20 px-4 bg-slate-50 rounded-3xl border border-dashed border-slate-300">
+                  <p className="text-slate-400 font-bold">請匯入資料</p>
                 </div>
               )}
-              {error && <p className="text-red-500 text-sm p-4 bg-red-50 rounded-lg">{error}</p>}
+              {error && <p className="text-red-500 text-xs p-4 bg-red-50 rounded-xl border border-red-100">{error}</p>}
               
               {courses.map(c => (
                 <button 
                   key={c.uid} 
                   onClick={() => toggle(c.uid)}
-                  className={`w-full text-left p-3 rounded-xl border-2 transition-all ${
+                  className={`w-full text-left p-4 rounded-2xl border-2 transition-all active:scale-[0.98] ${
                     selectedIds.has(c.uid) 
-                    ? 'border-blue-500 bg-blue-50 shadow-sm' 
-                    : 'border-transparent bg-gray-50 text-gray-400 opacity-60'
+                    ? 'border-blue-500 bg-white shadow-md' 
+                    : 'border-transparent bg-slate-100 text-slate-400 opacity-60'
                   }`}
                 >
-                  <div className="font-bold text-sm line-clamp-1">{c.name}</div>
-                  <div className="text-[10px] mt-1 flex justify-between">
-                    <span>{c.teacher}</span>
-                    <span className="font-mono">{c.id}</span>
+                  <div className="font-black text-sm line-clamp-1">{c.name}</div>
+                  <div className="text-[10px] mt-2 flex justify-between items-center font-bold">
+                    <span className="bg-slate-200 px-1.5 py-0.5 rounded text-slate-600">{c.teacher}</span>
+                    <span className="font-mono opacity-50">{c.id}</span>
                   </div>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* 右側課表 */}
-          <div className="flex-1 overflow-auto p-4 md:p-8">
-            <div className="min-w-[800px] bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+          {/* 右側課表區域 */}
+          <div className="flex-1 overflow-auto p-4 md:p-8 bg-slate-100 custom-scrollbar relative">
+            <div className="min-w-[900px] bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 overflow-hidden mb-12">
               {/* 星期標頭 */}
-              <div className="grid grid-cols-[120px_repeat(5,1fr)] bg-gray-100 border-b">
-                <div className="p-4 text-center font-bold text-gray-400 text-xs uppercase tracking-widest">Time</div>
+              <div className="grid grid-cols-[100px_repeat(5,1fr)] bg-slate-50 border-b border-slate-200">
+                <div className="p-6 text-center font-black text-slate-300 text-[10px] uppercase tracking-[0.3em] flex items-center justify-center">Time</div>
                 {days.map(d => (
-                  <div key={d.v} className="p-4 text-center font-black text-gray-700 border-l border-gray-200">
+                  <div key={d.v} className="p-6 text-center font-black text-slate-700 border-l border-slate-100 text-lg">
                     {d.n}
                   </div>
                 ))}
               </div>
 
               {/* 課表主體 */}
-              <div className="flex flex-col">
+              <div className="flex flex-col relative">
+                {isLoading && <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] z-10 flex items-center justify-center font-bold text-slate-400">Loading Data...</div>}
+                
                 {visibleSlots.map(slot => (
-                  <div key={slot.id} className="grid grid-cols-[120px_repeat(5,1fr)] border-b border-gray-100 min-h-[80px]">
-                    <div className="flex flex-col items-center justify-center bg-gray-50/50 border-r border-gray-100 p-2">
-                      <span className="font-bold text-gray-700 text-sm">第 {slot.id} 節</span>
-                      <span className="text-[10px] text-gray-400 font-mono">{slot.time}</span>
+                  <div key={slot.id} className="grid grid-cols-[100px_repeat(5,1fr)] border-b border-slate-50 min-h-[110px]">
+                    <div className="flex flex-col items-center justify-center bg-slate-50/30 border-r border-slate-50 p-2">
+                      <span className="font-black text-slate-800 text-base">第 {slot.id} 節</span>
+                      <span className="text-[9px] text-slate-400 font-mono mt-1 tracking-tighter">{slot.time}</span>
                     </div>
                     {days.map(d => {
                       const matches = courses.filter(c => selectedIds.has(c.uid) && c.day === d.v && c.periods.includes(slot.id));
                       return (
-                        <div key={d.v} className="p-1 border-l border-gray-50 flex flex-col gap-1">
+                        <div key={d.v} className="p-1.5 border-l border-slate-50 flex flex-col gap-1.5 relative group hover:bg-slate-50/50 transition-colors">
                           {matches.map(m => (
-                            <div key={m.uid} className={`${m.color} p-2 rounded-lg border shadow-sm h-full flex flex-col justify-center animate-fadeIn`}>
-                              <div className="font-bold text-[11px] leading-tight mb-1">{m.name}</div>
-                              <div className="text-[9px] opacity-70 truncate font-medium">
-                                {m.location}
+                            <div 
+                              key={m.uid} 
+                              onClick={() => setDetailCourse(m)}
+                              className={`${m.color} p-3 rounded-2xl border-2 shadow-sm h-full flex flex-col justify-center animate-fadeIn cursor-pointer hover:shadow-xl hover:-translate-y-1 hover:scale-[1.02] transition-all relative z-10 group/item overflow-hidden`}
+                            >
+                              {/* 裝飾背景 */}
+                              <div className="absolute top-0 right-0 p-1 opacity-10 group-hover/item:opacity-30 transition-opacity">
+                                <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12V12a1 1 0 001.276.96l3.504-.876a1 1 0 01.73 0l3.504.876A1 1 0 0015 12V10.12l1.69-.724a1 1 0 011.028 1.718l-7 3a1 1 0 01-.787 0l-7-3a1 1 0 011.027-1.718z" /></svg>
+                              </div>
+                              
+                              <div className="font-black text-xs leading-tight mb-2 pr-4">{m.name}</div>
+                              <div className="mt-auto space-y-1">
+                                <div className="text-[9px] flex items-center gap-1 opacity-60 font-bold truncate">
+                                  <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                  {m.location}
+                                </div>
+                                <div className="text-[9px] flex items-center gap-1 opacity-60 font-bold">
+                                  <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                  {m.teacher}
+                                </div>
                               </div>
                             </div>
                           ))}
@@ -251,6 +348,14 @@
               </div>
             </div>
           </div>
+
+          {/* 詳細資訊彈窗 */}
+          {detailCourse && (
+            <DetailModal 
+              course={detailCourse} 
+              onClose={() => setDetailCourse(null)} 
+            />
+          )}
         </div>
       );
     }
@@ -258,15 +363,5 @@
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
   </script>
-
-  <style>
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
-    .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
-    /* 自訂捲軸 */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #f1f1f1; }
-    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-  </style>
 </body>
 </html>
