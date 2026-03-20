@@ -1,374 +1,371 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar as CalendarIcon, CheckSquare, Square, MapPin, User, Clock, Loader2, AlertCircle } from 'lucide-react';
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>課表可視化系統</title>
+  
+  <!-- 載入 Tailwind CSS 進行排版 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- 載入 React 核心庫 -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <!-- 載入 Babel 讓瀏覽器即時編譯 JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gray-100">
+  <!-- React 應用程式的掛載點 -->
+  <div id="root"></div>
 
-// 預設的色系，用於隨機分配給不同的課程
-const COLORS = [
-  'bg-red-100 text-red-900 border-red-300',
-  'bg-blue-100 text-blue-900 border-blue-300',
-  'bg-green-100 text-green-900 border-green-300',
-  'bg-yellow-100 text-yellow-900 border-yellow-400',
-  'bg-purple-100 text-purple-900 border-purple-300',
-  'bg-pink-100 text-pink-900 border-pink-300',
-  'bg-indigo-100 text-indigo-900 border-indigo-300',
-  'bg-teal-100 text-teal-900 border-teal-300',
-  'bg-orange-100 text-orange-900 border-orange-300',
-  'bg-cyan-100 text-cyan-900 border-cyan-300',
-];
+  <!-- 主要程式碼 -->
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
 
-// 標準節次與時間對應表（依照圖示推斷的標準大學時間表）
-const TIME_SLOTS = [
-  { id: '0', time: '07:10 - 08:00' },
-  { id: '1', time: '08:10 - 09:00' },
-  { id: '2', time: '09:10 - 10:00' },
-  { id: '3', time: '10:20 - 11:10' },
-  { id: '4', time: '11:20 - 12:10' },
-  { id: '5', time: '12:20 - 13:10' },
-  { id: '6', time: '13:20 - 14:10' },
-  { id: '7', time: '14:20 - 15:10' },
-  { id: '8', time: '15:30 - 16:20' },
-  { id: '9', time: '16:30 - 17:20' },
-  { id: '10', time: '17:30 - 18:20' },
-  { id: 'A', time: '18:30 - 19:20' },
-  { id: 'B', time: '19:30 - 20:20' },
-  { id: 'C', time: '20:30 - 21:20' },
-  { id: 'D', time: '21:30 - 22:20' }
-];
+    // 自訂 Icon 組件 (取代外部依賴，確保單一檔案能完美執行)
+    const CalendarIcon = ({size=24, className="text-blue-600"}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>;
+    const CheckSquare = ({size=18, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>;
+    const Square = ({size=18, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/></svg>;
+    const MapPin = ({size=18, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>;
+    const User = ({size=18, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+    const Clock = ({size=18, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
+    const Loader2 = ({size=32, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>;
+    const AlertCircle = ({size=32, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>;
 
-export default function App() {
-  const [courses, setCourses] = useState([]);
-  const [selectedCourseIds, setSelectedCourseIds] = useState(new Set());
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  // 初始化時自動讀取同層目錄下的活頁簿1.csv
-  useEffect(() => {
-    setIsLoading(true);
-    setError(null);
-    
-    // 使用相對路徑讀取與 index.html 放在一起的 CSV 檔案
-    fetch('./活頁簿1.csv')
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`無法讀取檔案 (HTTP 狀態碼: ${response.status})`);
-        }
-        return response.text();
-      })
-      .then(text => {
-        processCSV(text);
-        setIsLoading(false);
-      })
-      .catch(err => {
-        console.error('讀取 CSV 失敗:', err);
-        setError(err.message);
-        setIsLoading(false);
-      });
-  }, []);
-
-  // 展開節次範圍 (例如: "6-8" 轉為 ["6", "7", "8"])
-  const expandPeriods = (periodStr) => {
-    const allPeriods = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'A', 'B', 'C', 'D'];
-    if (periodStr.includes('-')) {
-      const [start, end] = periodStr.split('-');
-      const startIndex = allPeriods.indexOf(start);
-      const endIndex = allPeriods.indexOf(end);
-      if (startIndex !== -1 && endIndex !== -1 && startIndex <= endIndex) {
-        return allPeriods.slice(startIndex, endIndex + 1);
-      }
-    }
-    return [periodStr];
-  };
-
-  // 基本的安全 CSV 解析器（處理逗號在引號內的情況）
-  const parseCSVText = (strData) => {
-    let arrData = [[]];
-    let i = 0;
-    let row = 0;
-    let inQuotes = false;
-    for (let c = 0; c < strData.length; c++) {
-      let char = strData[c];
-      let nextChar = strData[c + 1];
-      if (char === '"') {
-        if (inQuotes && nextChar === '"') {
-          arrData[row][i] += '"';
-          c++;
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (char === ',' && !inQuotes) {
-        i++;
-        arrData[row][i] = '';
-      } else if (char === '\n' && !inQuotes) {
-        row++;
-        i = 0;
-        arrData[row] = [''];
-      } else if (char !== '\r') {
-        if (arrData[row][i] === undefined) arrData[row][i] = '';
-        arrData[row][i] += char;
-      }
-    }
-    return arrData;
-  };
-
-  // 處理並解析 CSV 資料
-  const processCSV = (text) => {
-    const rows = parseCSVText(text);
-    if (rows.length < 2) return;
-
-    // 定位關鍵欄位索引 (自動偵測或使用預設)
-    const headers = rows[0].map(h => h?.trim());
-    const idIdx = headers.indexOf('開課序號');
-    const nameIdx = headers.indexOf('中文課程名稱');
-    const teacherIdx = headers.indexOf('教師');
-    const timeLocIdx = headers.indexOf('地點時間');
-
-    const iId = idIdx >= 0 ? idIdx : 0;
-    const iName = nameIdx >= 0 ? nameIdx : 9;
-    const iTeacher = teacherIdx >= 0 ? teacherIdx : 14;
-    const iTimeLoc = timeLocIdx >= 0 ? timeLocIdx : 15;
-
-    const parsedCourses = [];
-    let colorIndex = 0;
-    const dayMap = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '日': 7 };
-
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i];
-      if (!row || row.length < Math.max(iName, iTimeLoc)) continue;
-
-      const id = row[iId]?.trim() || `idx_${i}`;
-      const name = row[iName]?.trim();
-      const teacher = row[iTeacher]?.trim() || '';
-      const timeLoc = row[iTimeLoc]?.trim() || '';
-
-      if (!name || !timeLoc) continue;
-
-      // 解析地點時間 (支援透過逗號分隔的多個時間段)
-      const schedules = [];
-      const parts = timeLoc.split(/[,;]/);
-      
-      parts.forEach(part => {
-        const match = part.trim().match(/^(一|二|三|四|五|六|日)\s+([0-9A-Z]+(?:-[0-9A-Z]+)?)\s+(.*)$/);
-        if (match) {
-          schedules.push({
-            dayOfWeek: dayMap[match[1]],
-            periods: expandPeriods(match[2]),
-            location: match[3].trim()
-          });
-        }
-      });
-
-      if (schedules.length > 0) {
-        parsedCourses.push({
-          id: id,
-          name,
-          teacher,
-          originalTimeLoc: timeLoc,
-          schedules: schedules,
-          colorClass: COLORS[colorIndex % COLORS.length]
-        });
-        colorIndex++;
-      }
-    }
-
-    setCourses(parsedCourses);
-    // 預設全選
-    setSelectedCourseIds(new Set(parsedCourses.map(c => c.id)));
-  };
-
-  const toggleCourse = (id) => {
-    const newSet = new Set(selectedCourseIds);
-    if (newSet.has(id)) {
-      newSet.delete(id);
-    } else {
-      newSet.add(id);
-    }
-    setSelectedCourseIds(newSet);
-  };
-
-  // 動態計算要顯示的天數（包含週末防呆）
-  const displayDays = useMemo(() => {
-    const hasWeekend = courses.some(c => c.schedules.some(s => s.dayOfWeek > 5));
-    const days = [
-      { label: '星期一', value: 1 },
-      { label: '星期二', value: 2 },
-      { label: '星期三', value: 3 },
-      { label: '星期四', value: 4 },
-      { label: '星期五', value: 5 }
+    const COLORS = [
+      'bg-red-100 text-red-900 border-red-300',
+      'bg-blue-100 text-blue-900 border-blue-300',
+      'bg-green-100 text-green-900 border-green-300',
+      'bg-yellow-100 text-yellow-900 border-yellow-400',
+      'bg-purple-100 text-purple-900 border-purple-300',
+      'bg-pink-100 text-pink-900 border-pink-300',
+      'bg-indigo-100 text-indigo-900 border-indigo-300',
+      'bg-teal-100 text-teal-900 border-teal-300',
+      'bg-orange-100 text-orange-900 border-orange-300',
+      'bg-cyan-100 text-cyan-900 border-cyan-300',
     ];
-    if (hasWeekend) {
-      days.push({ label: '星期六', value: 6 }, { label: '星期日', value: 7 });
-    }
-    return days;
-  }, [courses]);
 
-  // 動態過濾活躍的節次區間（避免顯示過多空行，但保留基礎的 1~10 節）
-  const activeSlots = useMemo(() => {
-    return TIME_SLOTS.filter(slot => {
-      // 永遠顯示 1~10 節
-      if (['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'].includes(slot.id)) return true;
-      // 0, A, B, C, D 若有課程才顯示
-      return courses.some(c => c.schedules.some(s => s.periods.includes(slot.id)));
-    });
-  }, [courses]);
+    const TIME_SLOTS = [
+      { id: '0', time: '07:10 - 08:00' },
+      { id: '1', time: '08:10 - 09:00' },
+      { id: '2', time: '09:10 - 10:00' },
+      { id: '3', time: '10:20 - 11:10' },
+      { id: '4', time: '11:20 - 12:10' },
+      { id: '5', time: '12:20 - 13:10' },
+      { id: '6', time: '13:20 - 14:10' },
+      { id: '7', time: '14:20 - 15:10' },
+      { id: '8', time: '15:30 - 16:20' },
+      { id: '9', time: '16:30 - 17:20' },
+      { id: '10', time: '17:30 - 18:20' },
+      { id: 'A', time: '18:30 - 19:20' },
+      { id: 'B', time: '19:30 - 20:20' },
+      { id: 'C', time: '20:30 - 21:20' },
+      { id: 'D', time: '21:30 - 22:20' }
+    ];
 
-  return (
-    <div className="flex flex-col md:flex-row h-screen w-full bg-white font-sans text-gray-800">
-      {/* 左側：控制面板與課程清單 */}
-      <div className="w-full md:w-80 flex-shrink-0 border-r border-gray-200 flex flex-col bg-gray-50 h-64 md:h-full">
-        {/* 標題與資訊區塊 */}
-        <div className="p-5 border-b border-gray-200 bg-white shadow-sm z-10">
-          <h1 className="text-xl font-extrabold flex items-center gap-2 text-gray-800">
-            <CalendarIcon className="text-blue-600" />
-            課表可視化
-          </h1>
-          <p className="text-xs text-gray-500 mt-2">點擊下方課程即可於右側隱藏/顯示該課程</p>
-        </div>
+    function App() {
+      const [courses, setCourses] = useState([]);
+      const [selectedCourseIds, setSelectedCourseIds] = useState(new Set());
+      const [isLoading, setIsLoading] = useState(true);
+      const [error, setError] = useState(null);
 
-        {/* 課程清單 (按鈕) */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
-          {!isLoading && !error && (
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xs font-bold text-gray-400 tracking-widest">已解析課程 ({courses.length})</h2>
-              <div className="text-[10px] text-gray-400">點擊卡片以隱藏/顯示</div>
-            </div>
-          )}
+      useEffect(() => {
+        setIsLoading(true);
+        setError(null);
+        
+        // 抓取 GitHub 上的 CSV 檔案
+        fetch('./活頁簿1.csv')
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`無法讀取檔案 (HTTP 狀態碼: ${response.status})`);
+            }
+            return response.arrayBuffer(); // 改用 buffer 讀取以處理潛在的編碼問題
+          })
+          .then(buffer => {
+            // 嘗試以 UTF-8 解碼
+            let text = new TextDecoder('utf-8').decode(buffer);
+            // 如果偵測到亂碼字元 (Excel 常見情況)，則改用 Big5 解碼
+            if (text.includes('')) {
+              text = new TextDecoder('big5').decode(buffer);
+            }
+            processCSV(text);
+            setIsLoading(false);
+          })
+          .catch(err => {
+            console.error('讀取 CSV 失敗:', err);
+            setError(err.message);
+            setIsLoading(false);
+          });
+      }, []);
+
+      const expandPeriods = (periodStr) => {
+        const allPeriods = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'A', 'B', 'C', 'D'];
+        if (periodStr.includes('-')) {
+          const [start, end] = periodStr.split('-');
+          const startIndex = allPeriods.indexOf(start);
+          const endIndex = allPeriods.indexOf(end);
+          if (startIndex !== -1 && endIndex !== -1 && startIndex <= endIndex) {
+            return allPeriods.slice(startIndex, endIndex + 1);
+          }
+        }
+        return [periodStr];
+      };
+
+      // 強化的 CSV 解析器 (支援處理 \r, \n, \r\n 各種換行符號)
+      const parseCSVText = (strData) => {
+        let arrData = [[]];
+        let i = 0;
+        let row = 0;
+        let inQuotes = false;
+        for (let c = 0; c < strData.length; c++) {
+          let char = strData[c];
+          let nextChar = strData[c + 1];
+          if (char === '"') {
+            if (inQuotes && nextChar === '"') {
+              arrData[row][i] += '"';
+              c++;
+            } else {
+              inQuotes = !inQuotes;
+            }
+          } else if (char === ',' && !inQuotes) {
+            i++;
+            arrData[row][i] = '';
+          } else if ((char === '\n' || char === '\r') && !inQuotes) {
+            if (char === '\r' && nextChar === '\n') {
+              c++; // 略過 \r\n 的 \n
+            }
+            row++;
+            i = 0;
+            arrData[row] = [''];
+          } else {
+            if (arrData[row][i] === undefined) arrData[row][i] = '';
+            arrData[row][i] += char;
+          }
+        }
+        // 清除最後一行如果是空陣列的情況
+        if (arrData[arrData.length - 1].length === 1 && arrData[arrData.length - 1][0] === '') {
+          arrData.pop();
+        }
+        return arrData;
+      };
+
+      const processCSV = (text) => {
+        const rows = parseCSVText(text);
+        if (rows.length < 2) return;
+
+        const headers = rows[0].map(h => h?.trim());
+        const idIdx = headers.indexOf('開課序號');
+        const nameIdx = headers.indexOf('中文課程名稱');
+        const teacherIdx = headers.indexOf('教師');
+        const timeLocIdx = headers.indexOf('地點時間');
+
+        const iId = idIdx >= 0 ? idIdx : 0;
+        const iName = nameIdx >= 0 ? nameIdx : 9;
+        const iTeacher = teacherIdx >= 0 ? teacherIdx : 14;
+        const iTimeLoc = timeLocIdx >= 0 ? timeLocIdx : 15;
+
+        const parsedCourses = [];
+        let colorIndex = 0;
+        const dayMap = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '日': 7 };
+
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (!row || row.length <= Math.max(iName, iTimeLoc)) continue;
+
+          const id = row[iId]?.trim() || `idx_${i}`;
+          const name = row[iName]?.trim();
+          const teacher = row[iTeacher]?.trim() || '';
+          const timeLoc = row[iTimeLoc]?.trim() || '';
+
+          if (!name || !timeLoc) continue;
+
+          const schedules = [];
+          const parts = timeLoc.split(/[,;]/);
           
-          {isLoading && (
-            <div className="text-center text-blue-500 text-sm py-10 flex flex-col items-center gap-3">
-              <Loader2 className="animate-spin opacity-80" size={32} />
-              <span className="font-medium">正在載入 活頁簿1.csv...</span>
-            </div>
-          )}
+          parts.forEach(part => {
+            const match = part.trim().match(/^(一|二|三|四|五|六|日)\s+([0-9A-Z]+(?:-[0-9A-Z]+)?)\s+(.*)$/);
+            if (match) {
+              schedules.push({
+                dayOfWeek: dayMap[match[1]],
+                periods: expandPeriods(match[2]),
+                location: match[3].trim()
+              });
+            }
+          });
 
-          {error && (
-            <div className="text-center text-red-500 text-sm py-10 flex flex-col items-center gap-3 px-4 bg-red-50 rounded-xl border border-red-100">
-              <AlertCircle size={32} className="opacity-80" />
-              <div className="font-bold">讀取失敗</div>
-              <div className="text-xs text-red-400 opacity-90">{error}</div>
-              <div className="text-xs text-red-400 opacity-80 mt-2">請確認您的 GitHub 儲存庫中，<br/>是否有放置正確的 <code>活頁簿1.csv</code></div>
+          if (schedules.length > 0) {
+            parsedCourses.push({
+              id: id,
+              name,
+              teacher,
+              originalTimeLoc: timeLoc,
+              schedules: schedules,
+              colorClass: COLORS[colorIndex % COLORS.length]
+            });
+            colorIndex++;
+          }
+        }
+
+        setCourses(parsedCourses);
+        setSelectedCourseIds(new Set(parsedCourses.map(c => c.id)));
+      };
+
+      const toggleCourse = (id) => {
+        const newSet = new Set(selectedCourseIds);
+        if (newSet.has(id)) {
+          newSet.delete(id);
+        } else {
+          newSet.add(id);
+        }
+        setSelectedCourseIds(newSet);
+      };
+
+      const displayDays = useMemo(() => {
+        const hasWeekend = courses.some(c => c.schedules.some(s => s.dayOfWeek > 5));
+        const days = [
+          { label: '星期一', value: 1 },
+          { label: '星期二', value: 2 },
+          { label: '星期三', value: 3 },
+          { label: '星期四', value: 4 },
+          { label: '星期五', value: 5 }
+        ];
+        if (hasWeekend) {
+          days.push({ label: '星期六', value: 6 }, { label: '星期日', value: 7 });
+        }
+        return days;
+      }, [courses]);
+
+      const activeSlots = useMemo(() => {
+        return TIME_SLOTS.filter(slot => {
+          if (['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'].includes(slot.id)) return true;
+          return courses.some(c => c.schedules.some(s => s.periods.includes(slot.id)));
+        });
+      }, [courses]);
+
+      return (
+        <div className="flex flex-col md:flex-row h-screen w-full bg-white font-sans text-gray-800">
+          <div className="w-full md:w-80 flex-shrink-0 border-r border-gray-200 flex flex-col bg-gray-50 h-64 md:h-full">
+            <div className="p-5 border-b border-gray-200 bg-white shadow-sm z-10">
+              <h1 className="text-xl font-extrabold flex items-center gap-2 text-gray-800">
+                <CalendarIcon className="text-blue-600" />
+                課表可視化
+              </h1>
+              <p className="text-xs text-gray-500 mt-2">點擊下方課程即可於右側隱藏/顯示</p>
             </div>
-          )}
-          
-          {!isLoading && !error && courses.map(course => (
-            <button
-              key={course.id}
-              onClick={() => toggleCourse(course.id)}
-              className={`w-full text-left p-3 rounded-xl border-2 transition-all duration-200 relative overflow-hidden group ${
-                selectedCourseIds.has(course.id)
-                  ? `${course.colorClass} shadow-sm scale-100 opacity-100`
-                  : 'bg-white text-gray-400 border-gray-200 hover:bg-gray-100 hover:border-gray-300 opacity-70'
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <span className="font-bold text-sm leading-tight pr-6 drop-shadow-sm">{course.name}</span>
-                {selectedCourseIds.has(course.id) ? (
-                  <CheckSquare size={18} className="absolute right-3 top-3 opacity-80" />
-                ) : (
-                  <Square size={18} className="absolute right-3 top-3 opacity-40 group-hover:opacity-70" />
-                )}
-              </div>
-              <div className="text-xs mt-2.5 space-y-1 font-medium">
-                <div className="flex items-center gap-1.5 opacity-80">
-                  <User size={12} /> {course.teacher || '無教師資訊'}
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {!isLoading && !error && (
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-xs font-bold text-gray-400 tracking-widest">已解析課程 ({courses.length})</h2>
+                  <div className="text-[10px] text-gray-400">點擊卡片切換</div>
                 </div>
-                <div className="flex items-center gap-1.5 opacity-80">
-                  <Clock size={12} /> <span className="truncate">{course.originalTimeLoc}</span>
+              )}
+              
+              {isLoading && (
+                <div className="text-center text-blue-500 text-sm py-10 flex flex-col items-center gap-3">
+                  <Loader2 className="animate-spin opacity-80" size={32} />
+                  <span className="font-medium">正在載入 活頁簿1.csv...</span>
                 </div>
-              </div>
-            </button>
-          ))}
-          
-          {!isLoading && !error && courses.length === 0 && (
-            <div className="text-center text-gray-400 text-sm py-10 flex flex-col items-center gap-2">
-              <CalendarIcon size={32} className="opacity-20" />
-              CSV 內沒有有效的課程資料
-            </div>
-          )}
-        </div>
-      </div>
+              )}
 
-      {/* 右側：一週行事曆 */}
-      <div className="flex-1 overflow-auto bg-gray-100 p-4 md:p-6 custom-scrollbar relative">
-        <div className="min-w-[800px] bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          
-          {/* 課表標頭 */}
-          <div 
-            className="grid bg-gray-50 border-b border-gray-200"
-            style={{ gridTemplateColumns: `100px repeat(${displayDays.length}, minmax(0, 1fr))` }}
-          >
-            <div className="border-r border-gray-200 text-center font-bold py-3.5 text-sm text-gray-500 flex items-center justify-center">
-              節次 / 時間
-            </div>
-            {displayDays.map(day => (
-              <div key={day.value} className="border-r last:border-r-0 border-gray-200 text-center font-extrabold py-3.5 text-gray-700 text-sm">
-                {day.label}
-              </div>
-            ))}
-          </div>
-
-          {/* 課表主體 */}
-          <div className="flex flex-col relative">
-            {/* 載入中遮罩層 */}
-            {isLoading && (
-               <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10"></div>
-            )}
-            
-            {activeSlots.map(slot => (
-              <div 
-                key={slot.id} 
-                className="grid border-b last:border-b-0 border-gray-100 group"
-                style={{ gridTemplateColumns: `100px repeat(${displayDays.length}, minmax(0, 1fr))` }}
-              >
-                {/* 節次與時間欄位 */}
-                <div className="bg-gray-50/50 group-hover:bg-gray-100/50 border-r border-gray-200 py-3 flex flex-col items-center justify-center gap-1 transition-colors">
-                  <span className="font-bold text-gray-700 text-sm">第 {slot.id} 節</span>
-                  <span className="text-[10px] text-gray-500 font-mono tracking-tighter bg-white px-1.5 py-0.5 rounded border border-gray-200 shadow-sm">
-                    {slot.time}
-                  </span>
+              {error && (
+                <div className="text-center text-red-500 text-sm py-10 flex flex-col items-center gap-3 px-4 bg-red-50 rounded-xl border border-red-100">
+                  <AlertCircle size={32} className="opacity-80" />
+                  <div className="font-bold">讀取失敗</div>
+                  <div className="text-xs text-red-400 opacity-90">{error}</div>
+                  <div className="text-xs text-red-400 opacity-80 mt-2">請確認 GitHub 中是否有正確上傳<br/><code>活頁簿1.csv</code></div>
                 </div>
-                
-                {/* 每天的對應儲存格 */}
-                {displayDays.map(day => {
-                  const cellCourses = courses.filter(c =>
-                    selectedCourseIds.has(c.id) &&
-                    c.schedules.some(s => s.dayOfWeek === day.value && s.periods.includes(slot.id))
-                  );
-
-                  return (
-                    <div 
-                      key={`${slot.id}-${day.value}`} 
-                      className="bg-white border-r last:border-r-0 border-gray-100 p-1.5 min-h-[5.5rem] transition-colors hover:bg-blue-50/30"
-                    >
-                      {cellCourses.map(c => {
-                        const matchingSchedule = c.schedules.find(s => s.dayOfWeek === day.value && s.periods.includes(slot.id));
-                        return (
-                          <div 
-                            key={c.id} 
-                            className={`p-2 mb-1.5 rounded-lg border-2 text-xs shadow-sm flex flex-col gap-1.5 hover:shadow-md transition-shadow cursor-default ${c.colorClass}`}
-                          >
-                            <div className="font-bold leading-snug line-clamp-2" title={c.name}>
-                              {c.name}
-                            </div>
-                            <div className="flex flex-col gap-1 mt-auto font-medium">
-                              <span className="flex items-center gap-1 opacity-80" title={c.teacher}>
-                                <User size={10} className="flex-shrink-0"/> 
-                                <span className="truncate">{c.teacher || '未定'}</span>
-                              </span>
-                              <span className="flex items-center gap-1 opacity-80" title={matchingSchedule?.location}>
-                                <MapPin size={10} className="flex-shrink-0"/> 
-                                <span className="truncate">{matchingSchedule?.location}</span>
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
+              )}
+              
+              {!isLoading && !error && courses.map(course => (
+                <button
+                  key={course.id}
+                  onClick={() => toggleCourse(course.id)}
+                  className={`w-full text-left p-3 rounded-xl border-2 transition-all duration-200 relative overflow-hidden group ${
+                    selectedCourseIds.has(course.id)
+                      ? `${course.colorClass} shadow-sm scale-100 opacity-100`
+                      : 'bg-white text-gray-400 border-gray-200 hover:bg-gray-100 hover:border-gray-300 opacity-70'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <span className="font-bold text-sm leading-tight pr-6 drop-shadow-sm">{course.name}</span>
+                    {selectedCourseIds.has(course.id) ? (
+                      <CheckSquare size={18} className="absolute right-3 top-3 opacity-80" />
+                    ) : (
+                      <Square size={18} className="absolute right-3 top-3 opacity-40 group-hover:opacity-70" />
+                    )}
+                  </div>
+                  <div className="text-xs mt-2.5 space-y-1 font-medium">
+                    <div className="flex items-center gap-1.5 opacity-80">
+                      <User size={12} /> {course.teacher || '無教師資訊'}
                     </div>
-                  );
-                })}
+                    <div className="flex items-center gap-1.5 opacity-80">
+                      <Clock size={12} /> <span className="truncate">{course.originalTimeLoc}</span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+              
+              {!isLoading && !error && courses.length === 0 && (
+                <div className="text-center text-gray-400 text-sm py-10 flex flex-col items-center gap-2">
+                  <CalendarIcon size={32} className="opacity-20 text-gray-400" />
+                  CSV 內沒有有效的課程資料<br/>(請確認欄位格式是否正確)
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-auto bg-gray-100 p-4 md:p-6 relative">
+            <div className="min-w-[800px] bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="grid bg-gray-50 border-b border-gray-200" style={{ gridTemplateColumns: `100px repeat(${displayDays.length}, minmax(0, 1fr))` }}>
+                <div className="border-r border-gray-200 text-center font-bold py-3.5 text-sm text-gray-500 flex items-center justify-center">節次 / 時間</div>
+                {displayDays.map(day => (
+                  <div key={day.value} className="border-r last:border-r-0 border-gray-200 text-center font-extrabold py-3.5 text-gray-700 text-sm">{day.label}</div>
+                ))}
               </div>
-            ))}
+
+              <div className="flex flex-col relative">
+                {isLoading && <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10"></div>}
+                
+                {activeSlots.map(slot => (
+                  <div key={slot.id} className="grid border-b last:border-b-0 border-gray-100 group" style={{ gridTemplateColumns: `100px repeat(${displayDays.length}, minmax(0, 1fr))` }}>
+                    <div className="bg-gray-50/50 group-hover:bg-gray-100/50 border-r border-gray-200 py-3 flex flex-col items-center justify-center gap-1 transition-colors">
+                      <span className="font-bold text-gray-700 text-sm">第 {slot.id} 節</span>
+                      <span className="text-[10px] text-gray-500 font-mono tracking-tighter bg-white px-1.5 py-0.5 rounded border border-gray-200 shadow-sm">{slot.time}</span>
+                    </div>
+                    
+                    {displayDays.map(day => {
+                      const cellCourses = courses.filter(c => selectedCourseIds.has(c.id) && c.schedules.some(s => s.dayOfWeek === day.value && s.periods.includes(slot.id)));
+                      return (
+                        <div key={`${slot.id}-${day.value}`} className="bg-white border-r last:border-r-0 border-gray-100 p-1.5 min-h-[5.5rem] transition-colors hover:bg-blue-50/30">
+                          {cellCourses.map(c => {
+                            const matchingSchedule = c.schedules.find(s => s.dayOfWeek === day.value && s.periods.includes(slot.id));
+                            return (
+                              <div key={c.id} className={`p-2 mb-1.5 rounded-lg border-2 text-xs shadow-sm flex flex-col gap-1.5 hover:shadow-md transition-shadow cursor-default ${c.colorClass}`}>
+                                <div className="font-bold leading-snug line-clamp-2" title={c.name}>{c.name}</div>
+                                <div className="flex flex-col gap-1 mt-auto font-medium">
+                                  <span className="flex items-center gap-1 opacity-80" title={c.teacher}><User size={10} className="flex-shrink-0"/> <span className="truncate">{c.teacher || '未定'}</span></span>
+                                  <span className="flex items-center gap-1 opacity-80" title={matchingSchedule?.location}><MapPin size={10} className="flex-shrink-0"/> <span className="truncate">{matchingSchedule?.location}</span></span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
+      );
+    }
+
+    // 啟動 React 應用程式
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
